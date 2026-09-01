@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from src.config import settings
+from src.pipeline.orchestrator import PipelineOrchestrator, PipelineExecutionError
 from src.utils.logger import logger
 
 
@@ -19,10 +20,15 @@ def parse_args() -> argparse.Namespace:
         description="Face Identification & Blockchain Verification Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Example:
-  python main.py --image data/input/sample.jpg
-  python main.py --image data/input/sample.jpg --provider serpapi_lens
-  python main.py --image data/input/sample.jpg --query "Sample Person"
+Examples:
+  # Primary reverse image search (using SerpApi Google Lens)
+  python main.py --image data/input/person.jpg
+
+  # Query-assisted search using DuckDuckGo
+  python main.py --image data/input/person.jpg --provider duckduckgo --query "Person Name"
+
+  # Custom similarity threshold and max candidates
+  python main.py --image data/input/person.jpg --threshold 0.40 --max-candidates 5
         """,
     )
     parser.add_argument(
@@ -61,6 +67,11 @@ Example:
         default=settings.max_candidates,
         help=f"Max candidates to retrieve and evaluate (default: {settings.max_candidates})",
     )
+    parser.add_argument(
+        "--no-tamper-test",
+        action="store_true",
+        help="Skip the automated Phase 13 tamper demonstration",
+    )
     return parser.parse_args()
 
 
@@ -68,25 +79,31 @@ def main() -> int:
     """Main CLI execution routine."""
     args = parse_args()
 
-    logger.info("=" * 60)
-    logger.info("FACE IDENTIFICATION & BLOCKCHAIN VERIFICATION PIPELINE")
-    logger.info("=" * 60)
-    logger.info(f"Target Image:      {args.image}")
-    logger.info(f"Search Provider:   {args.provider}")
-    logger.info(f"Match Threshold:   {args.threshold}")
-    logger.info(f"Max Candidates:    {args.max_candidates}")
-    if args.query:
-        logger.info(f"Optional Query:    {args.query}")
-    logger.info("=" * 60)
-
-    # Skeleton validation
     image_path = Path(args.image)
     if not image_path.exists():
         logger.error(f"Input image file not found: {image_path}")
         return 1
 
-    logger.info("[PHASE 1] Environment and project skeleton initialized successfully.")
-    return 0
+    try:
+        orchestrator = PipelineOrchestrator(
+            search_provider_name=args.provider,
+            similarity_threshold=args.threshold,
+            max_candidates=args.max_candidates,
+        )
+
+        results = orchestrator.execute(
+            image_path=image_path,
+            query=args.query,
+            run_tamper_test=not args.no_tamper_test,
+        )
+        return 0 if results.get("verification_status") == "VERIFIED" else 1
+
+    except PipelineExecutionError as e:
+        logger.error(f"\n[PIPELINE ERROR] {e}")
+        return 1
+    except Exception as e:
+        logger.error(f"\n[FATAL ERROR] Unexpected exception during execution: {e}")
+        return 1
 
 
 if __name__ == "__main__":

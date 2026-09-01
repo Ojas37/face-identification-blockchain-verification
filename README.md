@@ -13,18 +13,21 @@ In modern digital investigations, OSINT, and media forensics, proving the proven
 - **Genuine Image Discovery**: Reverse image search (SerpApi Google Lens) drives web discovery from the input face image itself without requiring pre-typed person names.
 - **Zero Biometrics on Chain**: Facial embeddings are kept exclusively in volatile memory; only SHA-256 fingerprints of normalized public post metadata are anchored on-chain.
 - **Deterministic Canonicalization**: RFC 8785 JSON Canonicalization Scheme (JCS) ensures bit-for-bit reproducible byte serialization across platforms.
-- **Real EVM Blockchain**: Integrates with local Anvil nodes or Ethereum/Polygon testnets via standard Web3.py JSON-RPC.
+- **Real EVM Blockchain**: Integrates with local Anvil nodes, built-in local EVM nodes (`scripts/start_local_node.py`), or Ethereum/Polygon testnets via standard Web3.py JSON-RPC.
 
 ---
 
-## Problem Statement
+## API Keys & Configuration Guide
 
-When an investigator or analyst identifies an image appearing on a public web page or social media platform, existing workflows suffer from:
-1. **Lack of Cryptographic Immutability**: Discovered posts can be deleted, edited, or deepfaked after discovery with no tamper-proof record of what existed at discovery time.
-2. **Biometric Privacy Hazards**: Naively storing facial embeddings or raw images on public blockchains creates permanent privacy violations and GDPR/CCPA non-compliance.
-3. **Non-Deterministic Hashing**: Inconsistent JSON key ordering or timestamp regeneration causes verification hashes to fail by construction.
+To run live reverse image search and testnet operations, obtain your credentials and paste them into `.env`:
 
-This pipeline solves these challenges by combining local deep-learning face verification with deterministic canonicalization and real EVM on-chain anchoring.
+| Service / Variable | How to Obtain Key | Where to Paste in `.env` |
+| :--- | :--- | :--- |
+| **`SERPAPI_API_KEY`** *(Primary)* | 1. Sign up for free at [https://serpapi.com/](https://serpapi.com/)<br>2. Go to [https://serpapi.com/manage-api-key](https://serpapi.com/manage-api-key)<br>3. Copy your API Key (100 free searches/month). | `SERPAPI_API_KEY=your_key_here` |
+| **`GOOGLE_CSE_API_KEY`** *(Secondary / Optional)* | 1. Open [Google Cloud Console Credentials](https://console.cloud.google.com/apis/credentials)<br>2. Enable **Custom Search API** and create an API Key. | `GOOGLE_CSE_API_KEY=your_key_here` |
+| **`GOOGLE_CSE_ENGINE_ID`** *(Secondary / Optional)* | 1. Create a search engine at [https://programmablesearchengine.google.com/](https://programmablesearchengine.google.com/)<br>2. Copy your **Search engine ID (cx)**. | `GOOGLE_CSE_ENGINE_ID=your_cx_here` |
+| **`BLOCKCHAIN_RPC_URL`** | - Local Dev: `http://127.0.0.1:8545`<br>- Testnet: Get free RPC from [Alchemy](https://www.alchemy.com/) or [Infura](https://www.infura.io/) for Polygon Amoy or Sepolia. | `BLOCKCHAIN_RPC_URL=http://127.0.0.1:8545` |
+| **`BLOCKCHAIN_PRIVATE_KEY`** | - Local Dev: Default pre-funded Anvil key `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`<br>- Testnet: Export testnet account private key from MetaMask. | `BLOCKCHAIN_PRIVATE_KEY=0xac09...` |
 
 ---
 
@@ -74,11 +77,11 @@ flowchart TD
 ```
 FaceBlockchain/
 ├── data/
-│   ├── input/               # Local input images
+│   ├── input/               # Local input images (e.g. sample.jpg)
 │   ├── candidates/          # Temporarily downloaded candidate images
 │   └── models/              # Pretrained ONNX face detection & recognition models
 ├── src/
-│   ├── config.py            # Central configuration & environment variable loader
+│   ├── config.py            # Central configuration & fail-fast validator
 │   ├── face/
 │   │   ├── base.py          # Abstract interfaces for detector & encoder
 │   │   ├── detector.py      # OpenCV YuNet face detector implementation
@@ -99,7 +102,8 @@ FaceBlockchain/
 │   │   ├── client.py        # Web3 / EVM connection & transaction manager
 │   │   ├── contract.py      # Solidity contract interface & ABI definitions
 │   │   └── contracts/
-│   │       └── VerificationRegistry.sol # Smart contract code
+│   │       ├── VerificationRegistry.sol  # Solidity smart contract
+│   │       └── VerificationRegistry.json # Compiled ABI & Bytecode
 │   ├── pipeline/
 │   │   ├── orchestrator.py  # End-to-end 14-phase workflow coordinator
 │   │   └── models.py        # Dataclasses (CandidatePost, VerificationRecord, etc.)
@@ -116,6 +120,8 @@ FaceBlockchain/
 │   └── test_pipeline.py     # End-to-end mocked pipeline integration test
 ├── scripts/
 │   ├── download_models.py   # ONNX model fetcher
+│   ├── verify_threshold.py  # Dual-image threshold calibrator
+│   ├── start_local_node.py  # Local EVM JSON-RPC server (eth-tester)
 │   └── deploy_contract.py   # Contract deployment script
 ├── .env.example             # Secrets template
 ├── .gitignore               # Excludes secrets, models, temporary files
@@ -126,7 +132,7 @@ FaceBlockchain/
 
 ---
 
-## Installation
+## Installation & Setup
 
 ### 1. Clone Repository & Setup Virtual Environment
 ```bash
@@ -153,126 +159,53 @@ This automatically fetches:
 - `face_detection_yunet_2023mar.onnx` (YuNet Detector)
 - `face_recognition_sface_2021dec.onnx` (SFace Recognizer)
 
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env` and fill in your configurations:
-
+### 4. Configure Environment
 ```bash
 cp .env.example .env
 ```
-
-| Variable | Default | Description |
-| :--- | :--- | :--- |
-| `SEARCH_PROVIDER` | `serpapi_lens` | Primary discovery engine (`serpapi_lens`, `duckduckgo`, `google_cse`) |
-| `SERPAPI_API_KEY` | - | Required for SerpApi Google Lens reverse image search |
-| `FACE_DETECTION_CONFIDENCE` | `0.8` | Minimum detection confidence score (0.0 to 1.0) |
-| `MATCH_SIMILARITY_THRESHOLD` | `0.363` | SFace cosine similarity threshold (~0.363 is SFace standard) |
-| `MAX_CANDIDATES` | `10` | Maximum candidate posts to retrieve and evaluate |
-| `BLOCKCHAIN_RPC_URL` | `http://127.0.0.1:8545` | EVM JSON-RPC endpoint (Anvil or Testnet RPC) |
-| `BLOCKCHAIN_PRIVATE_KEY` | Anvil Default Key | Private key for signing on-chain transactions |
-| `REGISTRY_CONTRACT_ADDRESS`| - | Address of deployed `VerificationRegistry` contract |
-| `BLOCKCHAIN_MODE` | `contract` | Storage mode: `contract` or `calldata` |
+Edit `.env` to add your `SERPAPI_API_KEY`.
 
 ---
 
-## Face Identification
+## Quick Start & Execution
 
-1. **Detection**: OpenCV YuNet dynamically adapts to image dimensions, locating bounding boxes and 5 facial landmarks (left eye, right eye, nose tip, left mouth, right mouth).
-2. **Deterministic Selection**: In multi-face images, the target face is selected deterministically based on bounding box area and detection confidence:
-   $$\text{Score} = \text{Area} \times \text{Confidence}$$
-3. **Encoding**: SFace aligns the cropped face into a standard 112x112 image using landmark affine transformations, then extracts a 128-dimensional floating point embedding normalized such that $\|\mathbf{v}\|_2 = 1.0$.
-
----
-
-## Web / Social Media Search
-
-- **Primary Provider (`reverse_image.py`)**: Submits the input face image directly to SerpApi's `google_lens` engine. This performs genuine reverse visual lookup, returning web pages, profiles, and articles where visually matching faces appear.
-- **Secondary Providers (`duckduckgo.py`, `google_cse.py`)**: Fallback query-assisted search providers implementing the common `SearchProvider` interface.
-- **Adherence to Access Rules**: Respects HTTP status codes, standard timeouts (10s), and payload limits (<10MB per image, <2MB per HTML page). No CAPTCHAs or authentication walls are bypassed.
-
----
-
-## Matching Method
-
-Candidate post images are downloaded to `data/candidates/` and processed through the detector and encoder. For each candidate image:
-$$\text{Similarity}(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}}{\|\mathbf{u}\|_2 \|\mathbf{v}\|_2}$$
-- Evaluated against `MATCH_SIMILARITY_THRESHOLD` (default: `0.363`).
-- Candidates are ranked in descending order of cosine similarity.
-- The highest-ranking candidate meeting or exceeding the threshold is selected as the confirmed match. If no candidate exceeds the threshold, the pipeline cleanly exits with `NO MATCH FOUND`.
-
----
-
-## Hashing Method & Canonicalization
-
-To ensure identical post data always produces the exact same SHA-256 fingerprint regardless of operating system, Python version, or JSON library:
-1. **Immutable Provenance**: The `retrieved_at` timestamp is captured strictly once at collection time and preserved permanently.
-2. **Deterministic Canonicalization (RFC 8785)**:
-   - JSON dictionary keys sorted lexicographically.
-   - Minimal separators: `separators=(',', ':')` with no extraneous whitespace.
-   - UTF-8 byte serialization (`ensure_ascii=False`).
-3. **Payload Structure**:
-```json
-{
-  "image_sha256": "8f3b...",
-  "retrieved_at": "2026-09-01T14:00:00Z",
-  "schema_version": "1.0",
-  "source": "example.com",
-  "text": "Extracted text description",
-  "title": "Post Title",
-  "url": "https://example.com/post/123"
-}
-```
-4. **Fingerprint**: Standard FIPS-compliant SHA-256 digest producing a 64-character lowercase hex string.
-
----
-
-## Blockchain Architecture
-
-- **Real EVM Transactions**: Direct connection via `web3.py` to either:
-  - Local **Anvil** (`http://127.0.0.1:8545`) for zero-cost, real cryptographic transaction mining.
-  - Public Testnet (Polygon Amoy / Ethereum Sepolia).
-- **Smart Contract (`VerificationRegistry.sol`)**:
-  - `storeRecord(bytes32 _contentHash, string calldata _source, string calldata _url)`
-  - `getRecord(bytes32 _contentHash) -> (bytes32, string, string, uint256, address)`
-  - Emits `RecordStored` event on-chain.
-- **Calldata Fallback**: If running without a deployed contract, stores the fingerprint in raw transaction calldata (`tx.data`), verifiable via receipt inspection.
-
----
-
-## Verification Process & Tamper Detection
-
-1. **Re-Verification (Phase 12)**:
-   - Re-canonicalizes the local post data.
-   - Computes local SHA-256 hash: $H_{\text{local}}$.
-   - Compares with on-chain hash: $H_{\text{chain}}$.
-   - If $H_{\text{local}} == H_{\text{chain}}$, reports `VERIFIED ✓`.
-2. **Tamper Detection (Phase 13)**:
-   - Injects a synthetic mutation into one field of the post data.
-   - Re-computes $H_{\text{tampered}}$.
-   - Verifies that $H_{\text{tampered}} \neq H_{\text{chain}}$, reporting `TAMPER DETECTED ✓`.
-
----
-
-## How to Run
-
-### 1. Start Local Anvil Blockchain (Optional for Local Testing)
+### Option A: Local Sanity Check (`--dry-run`)
+Runs Phases 1–3 (image loading, YuNet face detection, SFace 128D encoding) without making external network calls:
 ```bash
-anvil
+python main.py --image data/input/sample.jpg --dry-run
 ```
 
-### 2. Run Pipeline CLI
+### Option B: Calibrate Similarity Threshold
+Compare two face images to empirically confirm matching metrics:
 ```bash
-# Primary Reverse Image Search via Google Lens
-python main.py --image data/input/sample.jpg
-
-# Query-assisted search via DuckDuckGo
-python main.py --image data/input/sample.jpg --provider duckduckgo --query "Person Name"
-
-# Custom threshold and candidates count
-python main.py --image data/input/sample.jpg --threshold 0.40 --max-candidates 5
+python scripts/verify_threshold.py --image1 data/input/person1_a.jpg --image2 data/input/person2.jpg
 ```
+
+### Option C: Full End-to-End Execution with Local Blockchain
+
+1. **Terminal 1 — Start Local Blockchain Node**:
+   ```bash
+   # If you have Foundry/Anvil:
+   anvil
+
+   # Or run the built-in local EVM server:
+   python scripts/start_local_node.py
+   ```
+
+2. **Terminal 2 — Deploy the Smart Contract**:
+   ```bash
+   python scripts/deploy_contract.py
+   ```
+   *Copy the output `REGISTRY_CONTRACT_ADDRESS` into your `.env`.*
+
+3. **Terminal 2 — Run the Full Verification Pipeline**:
+   ```bash
+   # Primary Reverse Image Search via Google Lens
+   python main.py --image data/input/sample.jpg
+
+   # Or query-assisted fallback via DuckDuckGo
+   python main.py --image data/input/sample.jpg --provider duckduckgo --query "Person Name"
+   ```
 
 ---
 
@@ -289,9 +222,9 @@ Max Candidates:    10
 ============================================================
 
 [PHASE 1 & 2] Loading Image and Detecting Faces...
-✓ Image loaded successfully (640x480 px)
+✓ Image loaded successfully (1024x1024 px)
 ✓ 1 face(s) detected in input image.
-✓ Target face selected: bbox=(142, 88, 220, 240), confidence=0.985
+✓ Target face selected: bbox=(357, 165, 323, 453), confidence=0.924
 
 [PHASE 3] Extracting Face Feature Embedding...
 ✓ Face embedding extracted: 128D vector (L2 normalized)
@@ -317,8 +250,8 @@ Max Candidates:    10
 [PHASE 9 & 10] Submitting Verification Record to Blockchain...
 [BLOCKCHAIN] Preparing transaction for hash: 3b9a1e8c7f245a90...
 [BLOCKCHAIN] Sender Account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Nonce: 1)
-[BLOCKCHAIN] Broadcasted TX: 0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b
-[BLOCKCHAIN] ✓ TX Confirmed in Block #43 (Gas Used: 68420)
+[BLOCKCHAIN] Broadcasted TX: 0xee6222267d84b692f66cbe88996d60d2253c3ff11d65eae1d8f968d1d354cd2f
+[BLOCKCHAIN] ✓ TX Confirmed in Block #3 (Gas Used: 140439)
 
 [PHASE 11] Retrieving Verification Record from Blockchain...
 ✓ On-chain record retrieved successfully.
@@ -342,8 +275,8 @@ FINAL RESULT SUMMARY
 Face Match:              FOUND (Cosine Sim: 0.8421)
 Matching Post URL:       https://reuters.com/world/article/123
 Content SHA-256 Hash:    3b9a1e8c7f245a90d6b5e1c84f23b7a9e1d4c82a7f5e3d1c9b8a7e6f5d4c3b2a
-Blockchain Transaction:  0x9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b
-Blockchain Block:        #43
+Blockchain Transaction:  0xee6222267d84b692f66cbe88996d60d2253c3ff11d65eae1d8f968d1d354cd2f
+Blockchain Block:        #3
 Verification Status:     VERIFIED ✓
 Tamper Test Result:      TAMPER_DETECTED
 ============================================================
@@ -359,7 +292,7 @@ Run the automated test suite covering all modules:
 pytest -v tests/
 ```
 
-### Test Suite Summary:
+### Test Suite Summary (20 Tests):
 - `tests/test_face.py`: Image decoding, bounding box parsing, SFace feature normalization, cosine similarity.
 - `tests/test_search.py`: Reverse image provider handling, candidate deduplication, metadata enrichment.
 - `tests/test_matching.py`: Comparator thresholding, candidate score ranking.
@@ -372,25 +305,26 @@ pytest -v tests/
 
 ## Known Limitations
 
-1. **Third-Party Rate Limits**: SerpApi and search engines impose monthly request quotas on free tiers.
-2. **Dynamic Web Content**: Web pages protected by Cloudflare/DDoS guards or complex JavaScript hydration may limit server-side OpenGraph parsing.
-3. **Extreme Facial Angles**: While YuNet and SFace are robust against moderate yaw/pitch variations, extreme profile views or severe occlusions may yield lower similarity scores.
+1. **Search Index Coverage & Availability**:
+   - Reverse visual search relies on Google Lens / SerpApi indexing. If a face image has never been indexed on publicly crawlable web pages, SerpApi will return zero visual matches, resulting in a clean `NO MATCH FOUND` report.
+   - For novel or private images, query-assisted mode (`--provider duckduckgo --query "Name"`) can be used to search candidate pages by contextual keywords.
+2. **Dynamic / Protected Web Pages**:
+   - Web pages behind anti-scraping walls (Cloudflare Bot Management, CAPTCHAs) or client-side JavaScript single-page apps (SPAs) without static OpenGraph tags may limit the richness of extracted metadata snippets.
+3. **Occlusions & Extreme Angles**:
+   - While YuNet and SFace tolerate moderate yaw and pitch deviations, extreme profile views (>60°), severe facial occlusions, or heavy compression artifacts in candidate images will reduce matching confidence scores.
 
 ---
 
 ## Ethical & Privacy Considerations
 
-- **Privacy Preservation**: Biometric vectors (128D embeddings) are strictly processed in volatile RAM and **never** stored permanently on disk or anchored to public blockchains.
-- **Data Minimization**: Only public metadata and cryptographic content fingerprints are hashed and anchored on-chain.
-- **Compliance**: Respects robots access guidelines and adheres to platform rate limits and security boundaries.
-
----
-
-## Future Improvements
-
-1. **Zero-Knowledge Proofs (ZKP)**: Generate zk-SNARK proofs of facial similarity without revealing the facial crop or embedding vector on-chain.
-2. **Decentralized Storage Integration (IPFS / Arweave)**: Anchor content fingerprints alongside decentralized content-addressed IPFS CIDs.
-3. **Multi-Chain Notarization**: Support cross-chain anchoring across Ethereum L2s (Arbitrum, Base, Optimism).
+1. **Authorized Usage Only**:
+   > [!IMPORTANT]
+   > This face-search verification capability must **only** be executed against your own photographs or images for which you have received explicit, written consent from the subject. Unauthorized scanning or surveillance of individuals without consent violates privacy ethics and applicable data protection regulations.
+2. **Biometric Data Minimization**:
+   - 128-dimensional facial embedding vectors are retained strictly in volatile RAM for the duration of the comparison and are **never** persisted to disk or written to the blockchain.
+   - Only the SHA-256 cryptographic hash of public, normalized post metadata is anchored on-chain.
+3. **Compliance with Data Regulations**:
+   - Compliant with GDPR (Article 9) and CCPA principles by ensuring no sensitive biometric identifiers or personal data are anchored to immutable public ledgers.
 
 ---
 

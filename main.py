@@ -72,6 +72,11 @@ Examples:
         action="store_true",
         help="Skip the automated Phase 13 tamper demonstration",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run only Phases 1-3 (load image, face detect, encode) and exit before search/blockchain",
+    )
     return parser.parse_args()
 
 
@@ -95,8 +100,10 @@ def main() -> int:
             image_path=image_path,
             query=args.query,
             run_tamper_test=not args.no_tamper_test,
+            dry_run=args.dry_run,
         )
-        return 0 if results.get("verification_status") == "VERIFIED" else 1
+        status = results.get("verification_status")
+        return 0 if status in ("VERIFIED", "DRY_RUN_SUCCESS") else 1
 
     except PipelineExecutionError as e:
         logger.error(f"\n[PIPELINE ERROR] {e}")

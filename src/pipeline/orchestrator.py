@@ -82,6 +82,7 @@ class PipelineOrchestrator:
         image_path: Path,
         query: Optional[str] = None,
         run_tamper_test: bool = True,
+        dry_run: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute the full end-to-end verification pipeline.
@@ -90,6 +91,7 @@ class PipelineOrchestrator:
             image_path: Path to local target face image.
             query: Optional query string for query-assisted search providers.
             run_tamper_test: Whether to execute the tamper test demonstration.
+            dry_run: If True, execute only Phases 1-3 (load, detect, encode) and stop.
 
         Returns:
             Dictionary containing complete pipeline results, transaction metadata, and audit log.
@@ -138,6 +140,26 @@ class PipelineOrchestrator:
             )
         except FaceEncodingError as e:
             raise PipelineExecutionError(f"Face encoding failure: {e}") from e
+
+        # Handle Dry-Run stop
+        if dry_run:
+            logger.info("\n" + "=" * 60)
+            logger.info("[DRY RUN COMPLETE] Phases 1-3 verified successfully.")
+            logger.info(f"Detected Faces:       {len(detected_faces)}")
+            logger.info(f"Selected Face BBox:   {target_face.bbox}")
+            logger.info(f"Detection Confidence: {target_face.confidence:.4f}")
+            logger.info(f"Embedding Dimension:  {input_embedding.dimension}D")
+            logger.info("Stopped before web search and blockchain submission.")
+            logger.info("=" * 60 + "\n")
+            return {
+                "dry_run": True,
+                "face_detected": True,
+                "faces_count": len(detected_faces),
+                "target_face_bbox": target_face.bbox,
+                "confidence": target_face.confidence,
+                "embedding_dimension": input_embedding.dimension,
+                "verification_status": "DRY_RUN_SUCCESS",
+            }
 
         # -------------------------------------------------------------
         # PHASE 4: Genuine Web / Social Media Discovery

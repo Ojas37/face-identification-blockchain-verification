@@ -68,28 +68,39 @@ class SerpApiLensSearchProvider(SearchProvider):
             raise SearchError(f"Network error while querying SerpApi Google Lens: {e}") from e
 
         results: List[SearchResult] = []
-        visual_matches = data.get("visual_matches", [])
+        
+        # Check all possible candidate lists returned by Google Lens
+        candidate_items = []
+        if "visual_matches" in data and isinstance(data["visual_matches"], list):
+            candidate_items.extend(data["visual_matches"])
+        if "exact_matches" in data and isinstance(data["exact_matches"], list):
+            candidate_items.extend(data["exact_matches"])
+        if "pages_with_matching_images" in data and isinstance(data["pages_with_matching_images"], list):
+            candidate_items.extend(data["pages_with_matching_images"])
 
-        for item in visual_matches[:max_results]:
+        for item in candidate_items[:max_results]:
             url = item.get("link")
             title = item.get("title", "Visual Match")
             source = item.get("source", "Web Source")
             thumbnail = item.get("thumbnail")
             original_image = item.get("original_image", thumbnail)
 
-            if url and (thumbnail or original_image):
+            if url:
                 results.append(
                     SearchResult(
                         url=url,
                         title=title,
                         source=source,
-                        image_url=original_image or thumbnail,
+                        image_url=original_image or thumbnail or "",
                         text=item.get("snippet", title),
                         metadata={"serpapi_match_type": "visual_match", "position": item.get("position")},
                     )
                 )
 
-        logger.info(f"[SEARCH] Discovered {len(results)} candidate results via Google Lens.")
+        if not results:
+            logger.info("[SEARCH] SerpApi Google Lens returned 0 candidate matches for this image.")
+        else:
+            logger.info(f"[SEARCH] Discovered {len(results)} candidate result(s) via Google Lens.")
         return results
 
     def search_by_query(self, query: str, max_results: int = 10) -> List[SearchResult]:

@@ -167,15 +167,18 @@ class BlockchainClient:
 
         # Wait for block confirmation
         receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash_bytes, timeout=60)
-        if receipt.get("status") != 1:
+        status = receipt.get("status")
+        if status != 1:
             raise BlockchainError(f"Transaction reverted on-chain. TX: {tx_hash}")
 
-        block = self.w3.eth.get_block(receipt["blockNumber"])
+        block_num = receipt.get("blockNumber") or receipt.get("block_number")
+        gas_used = receipt.get("gasUsed") or receipt.get("gas_used")
+        block = self.w3.eth.get_block(block_num)
         block_timestamp = block.get("timestamp", 0)
 
         logger.info(
-            f"[BLOCKCHAIN] ✓ TX Confirmed in Block #{receipt['blockNumber']} "
-            f"(Gas Used: {receipt['gasUsed']})"
+            f"[BLOCKCHAIN] ✓ TX Confirmed in Block #{block_num} "
+            f"(Gas Used: {gas_used})"
         )
 
         return VerificationRecord(
@@ -184,7 +187,7 @@ class BlockchainClient:
             url=url,
             timestamp=block_timestamp,
             tx_hash=tx_hash,
-            block_number=receipt["blockNumber"],
+            block_number=block_num,
             recorder=sender_address,
         )
 
@@ -237,7 +240,8 @@ class BlockchainClient:
             try:
                 tx = self.w3.eth.get_transaction(tx_hash)
                 receipt = self.w3.eth.get_transaction_receipt(tx_hash)
-                block = self.w3.eth.get_block(receipt["blockNumber"])
+                block_num = receipt.get("blockNumber") or receipt.get("block_number")
+                block = self.w3.eth.get_block(block_num)
 
                 raw_input = tx.get("input", "")
                 if isinstance(raw_input, HexBytes):
@@ -253,7 +257,7 @@ class BlockchainClient:
                     url=f"tx:{tx_hash}",
                     timestamp=block.get("timestamp", 0),
                     tx_hash=tx_hash,
-                    block_number=receipt["blockNumber"],
+                    block_number=block_num,
                     recorder=tx.get("from"),
                 )
             except TransactionNotFound as e:

@@ -22,6 +22,17 @@ class DetectedFace:
         return self.bbox[2] * self.bbox[3]
 
 
+@dataclass
+class FaceEmbedding:
+    """Represents a 128-dimensional numerical feature embedding of a face."""
+    vector: np.ndarray  # Shape (128,) or (1, 128) float32
+    dimension: int = 128
+
+    def __post_init__(self) -> None:
+        self.vector = np.squeeze(self.vector).astype(np.float32)
+        self.dimension = self.vector.shape[0]
+
+
 class BaseFaceDetector(ABC):
     """Abstract interface for face detection backends."""
 
@@ -53,3 +64,35 @@ class BaseFaceDetector(ABC):
             return None
         # Deterministic sorting: primary key is area * confidence, secondary is area
         return max(faces, key=lambda f: (f.area * f.confidence, f.area))
+
+
+class BaseFaceEncoder(ABC):
+    """Abstract interface for face recognition / feature embedding backends."""
+
+    @abstractmethod
+    def encode(self, image: np.ndarray, face: DetectedFace) -> FaceEmbedding:
+        """
+        Extract numerical feature embedding from a detected face crop.
+
+        Args:
+            image: Original BGR image array (H, W, 3).
+            face: DetectedFace with landmarks and raw detection row.
+
+        Returns:
+            FaceEmbedding instance containing 128D normalized vector.
+        """
+        pass
+
+    @abstractmethod
+    def compute_similarity(self, embedding1: FaceEmbedding, embedding2: FaceEmbedding) -> float:
+        """
+        Compute similarity score between two face embeddings.
+
+        Args:
+            embedding1: First face embedding.
+            embedding2: Second face embedding.
+
+        Returns:
+            Similarity score (higher means more similar).
+        """
+        pass

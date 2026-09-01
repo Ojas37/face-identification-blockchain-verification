@@ -84,3 +84,31 @@ def test_target_face_selection():
     assert selected == face2  # face2 has highest area * confidence score
 
     assert detector.select_target_face([]) is None
+
+
+def test_sface_encoder_embedding_and_similarity(sample_face_image):
+    """Test SFace face encoder extraction, dimension, L2 normalization, and similarity."""
+    from src.face.encoder import SFaceEncoder
+    from src.face.base import FaceEmbedding
+
+    encoder = SFaceEncoder()
+    face = DetectedFace(bbox=(100, 100, 200, 200), confidence=0.95)
+
+    embedding1 = encoder.encode(sample_face_image, face)
+    assert isinstance(embedding1, FaceEmbedding)
+    assert embedding1.dimension == 128
+    assert embedding1.vector.shape == (128,)
+
+    # Verify L2 normalization
+    norm = np.linalg.norm(embedding1.vector)
+    assert np.isclose(norm, 1.0, atol=1e-5)
+
+    # Identical embedding comparison should produce similarity ~ 1.0
+    sim_self = encoder.compute_similarity(embedding1, embedding1)
+    assert np.isclose(sim_self, 1.0, atol=1e-5)
+
+    # Orthogonal / different embedding
+    diff_vector = np.roll(embedding1.vector, 64)
+    embedding2 = FaceEmbedding(vector=diff_vector)
+    sim_diff = encoder.compute_similarity(embedding1, embedding2)
+    assert sim_diff < 0.99

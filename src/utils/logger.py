@@ -26,6 +26,12 @@ def get_logger(name: str = "FaceBlockchain") -> logging.Logger:
     """Create and return a configured logger instance."""
     logger = logging.getLogger(name)
     if not logger.handlers:
+        # Reconfigure sys.stdout to utf-8 if supported (Python 3.7+)
+        if hasattr(sys.stdout, "reconfigure"):
+            try:
+                sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(Formatter())
         logger.addHandler(handler)

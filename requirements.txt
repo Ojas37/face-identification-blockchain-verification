@@ -1,0 +1,23 @@
+# Core Computer Vision and Math
+opencv-python>=4.8.0.76
+numpy>=1.24.0
+pillow>=10.0.0
+
+# Network, Web Scraping, and Search Providers
+requests>=2.31.0
+beautifulsoup4>=4.12.3
+duckduckgo_search>=5.3.0
+urllib3>=2.0.0
+
+# Blockchain and Cryptography
+web3>=6.15.0
+eth-account>=0.11.0
+
+# Configuration, Logging, and CLI
+python-dotenv>=1.0.1
+pydantic>=2.6.0
+rich>=13.7.1
+
+# Testing
+pytest>=8.0.0
+pytest-mock>=3.12.0

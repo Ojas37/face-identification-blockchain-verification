@@ -21,51 +21,56 @@ class SerpApiLensSearchProvider(SearchProvider):
     SERPAPI_ENDPOINT = "https://serpapi.com/search.json"
 
     def __init__(self, api_key: Optional[str] = None) -> None:
-        self.api_key = api_key or settings.serpapi_api_key
+        self.api_key = api_key if api_key is not None else settings.serpapi_api_key
 
     def _host_local_image(self, image_path: Path) -> str:
         """
-        Upload local image to a temporary direct file host (catbox.moe / 0x0.st)
+        Upload local image to an ephemeral public file host (uguu.se / catbox.moe / 0x0.st)
         so Google Lens can crawl and inspect the raw image bytes.
+        Note: uguu.se files auto-expire after 3 hours.
         """
-        logger.info(f"[SEARCH] Uploading local image to temporary direct host for Google Lens...")
-        # 1. Primary: catbox.moe (direct raw static files, Googlebot crawlable)
+        logger.info(f"[SEARCH] Uploading local image to temporary public host for Google Lens...")
+        # 1. Primary: uguu.se (ephemeral 3h retention, fast direct raw image URL)
+        try:
+            with open(image_path, "rb") as f:
+                resp = requests.post(
+                    "https://uguu.se/upload",
+                    files={"files[]": f},
+                    timeout=15,
+                )
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("success") and data.get("files"):
+                    direct_url = data["files"][0]["url"]
+                    logger.info(f"[SEARCH] ✓ Image hosted at ephemeral URL (expires in 3h): {direct_url}")
+                    return direct_url
+        except Exception as e:
+            logger.warning(f"Uguu host upload failed: {e}. Trying secondary upload...")
+
+        # 2. Secondary fallback: catbox.moe
         try:
             with open(image_path, "rb") as f:
                 resp = requests.post(
                     "https://catbox.moe/user/api.php",
                     data={"reqtype": "fileupload"},
                     files={"fileToUpload": f},
-                    timeout=20,
+                    timeout=15,
                 )
             if resp.status_code == 200 and resp.text.strip().startswith("http"):
                 direct_url = resp.text.strip()
                 logger.info(f"[SEARCH] ✓ Image hosted at: {direct_url}")
                 return direct_url
         except Exception as e:
-            logger.warning(f"Catbox host upload failed: {e}. Trying secondary upload...")
+            logger.warning(f"Catbox host upload failed: {e}. Trying tertiary upload...")
 
-        # 2. Secondary fallback: 0x0.st
+        # 3. Tertiary fallback: 0x0.st
         try:
             with open(image_path, "rb") as f:
-                resp = requests.post("https://0x0.st", files={"file": f}, timeout=20)
+                resp = requests.post("https://0x0.st", files={"file": f}, timeout=15)
             if resp.status_code == 200 and resp.text.strip().startswith("http"):
                 direct_url = resp.text.strip()
                 logger.info(f"[SEARCH] ✓ Image hosted at: {direct_url}")
                 return direct_url
-        except Exception as e:
-            logger.warning(f"0x0.st host upload failed: {e}. Trying tmpfiles...")
-
-        # 3. Tertiary fallback: tmpfiles.org
-        try:
-            with open(image_path, "rb") as f:
-                resp = requests.post("https://tmpfiles.org/api/v1/upload", files={"file": f}, timeout=20)
-            if resp.status_code == 200:
-                raw_url = resp.json().get("data", {}).get("url", "")
-                if raw_url:
-                    direct_url = raw_url.replace("tmpfiles.org/", "tmpfiles.org/dl/")
-                    logger.info(f"[SEARCH] ✓ Image hosted at: {direct_url}")
-                    return direct_url
         except Exception as e:
             raise SearchError(f"Failed to host local image for reverse search: {e}") from e
 

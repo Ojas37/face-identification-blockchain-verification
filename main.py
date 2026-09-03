@@ -77,6 +77,11 @@ Examples:
         action="store_true",
         help="Run only Phases 1-3 (load image, face detect, encode) and exit before search/blockchain",
     )
+    parser.add_argument(
+        "--cleanup",
+        action="store_true",
+        help="Clean up downloaded candidate media in data/candidates/ after pipeline execution",
+    )
     return parser.parse_args()
 
 
@@ -101,6 +106,7 @@ def main() -> int:
             query=args.query,
             run_tamper_test=not args.no_tamper_test,
             dry_run=args.dry_run,
+            cleanup=args.cleanup,
         )
         status = results.get("verification_status")
         return 0 if status in ("VERIFIED", "DRY_RUN_SUCCESS") else 1

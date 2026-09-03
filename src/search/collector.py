@@ -171,3 +171,22 @@ class CandidateCollector:
 
         logger.info(f"[COLLECTOR] Collected and cached {len(candidates)} unique candidates.")
         return candidates
+
+    def clear_cache(self) -> int:
+        """
+        Delete all cached candidate images from the cache directory.
+
+        Returns:
+            Number of files removed.
+        """
+        removed = 0
+        if self.cache_dir.exists():
+            for item in self.cache_dir.glob("cand_*"):
+                try:
+                    item.unlink()
+                    removed += 1
+                except Exception as e:
+                    logger.debug(f"Failed to remove {item}: {e}")
+        if removed > 0:
+            logger.info(f"[COLLECTOR] Cleaned up {removed} cached candidate image(s).")
+        return removed

@@ -27,9 +27,16 @@ def test_serpapi_lens_mocked_search(tmp_path):
     test_img = tmp_path / "test.jpg"
     test_img.write_bytes(b"dummy image bytes")
 
-    mock_response = MagicMock()
-    mock_response.status_code = 200
-    mock_response.json.return_value = {
+    mock_upload_resp = MagicMock()
+    mock_upload_resp.status_code = 200
+    mock_upload_resp.json.return_value = {
+        "success": True,
+        "files": [{"url": "https://d.uguu.se/test.jpg"}]
+    }
+
+    mock_serpapi_resp = MagicMock()
+    mock_serpapi_resp.status_code = 200
+    mock_serpapi_resp.json.return_value = {
         "visual_matches": [
             {
                 "link": "https://example.com/post/1",
@@ -42,7 +49,8 @@ def test_serpapi_lens_mocked_search(tmp_path):
         ]
     }
 
-    with patch("requests.post", return_value=mock_response):
+    with patch("requests.post", return_value=mock_upload_resp), \
+         patch("requests.get", return_value=mock_serpapi_resp):
         provider = SerpApiLensSearchProvider(api_key="valid_key")
         results = provider.search_by_image(test_img, max_results=5)
         assert len(results) == 1

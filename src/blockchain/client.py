@@ -127,6 +127,16 @@ class BlockchainClient:
 
         if self.contract and self.mode == "contract":
             # Smart Contract Execution
+            try:
+                gas_est = self.contract.functions.storeRecord(
+                    hash_bytes32,
+                    source,
+                    url,
+                ).estimate_gas({"from": sender_address})
+                gas_limit = int(gas_est * 1.3) + 25000
+            except Exception:
+                gas_limit = 400000
+
             tx = self.contract.functions.storeRecord(
                 hash_bytes32,
                 source,
@@ -134,7 +144,7 @@ class BlockchainClient:
             ).build_transaction({
                 "from": sender_address,
                 "nonce": nonce,
-                "gas": 250000,
+                "gas": gas_limit,
                 "gasPrice": gas_price,
                 "chainId": chain_id,
             })

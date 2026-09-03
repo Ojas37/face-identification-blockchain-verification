@@ -77,7 +77,7 @@ flowchart TD
 ```
 FaceBlockchain/
 ├── data/
-│   ├── input/               # Local input images (e.g. sample.jpg)
+│   ├── input/               # Local input images (e.g. real_face.jpg)
 │   ├── candidates/          # Temporarily downloaded candidate images
 │   └── models/              # Pretrained ONNX face detection & recognition models
 ├── src/
@@ -172,7 +172,7 @@ Edit `.env` to add your `SERPAPI_API_KEY`.
 ### Option A: Local Sanity Check (`--dry-run`)
 Runs Phases 1–3 (image loading, YuNet face detection, SFace 128D encoding) without making external network calls:
 ```bash
-python main.py --image data/input/sample.jpg --dry-run
+python main.py --image data/input/real_face.jpg --dry-run
 ```
 
 ### Option B: Calibrate Similarity Threshold
@@ -200,11 +200,11 @@ python scripts/verify_threshold.py --image1 data/input/person1_a.jpg --image2 da
 
 3. **Terminal 2 — Run the Full Verification Pipeline**:
    ```bash
-   # Primary Reverse Image Search via Google Lens
-   python main.py --image data/input/sample.jpg
+   # Primary Reverse Image Search via Google Lens (with optional cache cleanup)
+   python main.py --image data/input/real_face.jpg --cleanup
 
    # Or query-assisted fallback via DuckDuckGo
-   python main.py --image data/input/sample.jpg --provider duckduckgo --query "Person Name"
+   python main.py --image data/input/real_face.jpg --provider duckduckgo --query "Person Name"
    ```
 
 ---
@@ -215,47 +215,64 @@ python scripts/verify_threshold.py --image1 data/input/person1_a.jpg --image2 da
 ============================================================
 FACE IDENTIFICATION & BLOCKCHAIN VERIFICATION PIPELINE
 ============================================================
-Target Image:      data/input/sample.jpg
+Target Image:      data/input/real_face.jpg
 Search Provider:   serpapi_lens
 Match Threshold:   0.363
 Max Candidates:    10
 ============================================================
 
 [PHASE 1 & 2] Loading Image and Detecting Faces...
-✓ Image loaded successfully (1024x1024 px)
+✓ Image loaded successfully (576x768 px)
 ✓ 1 face(s) detected in input image.
-✓ Target face selected: bbox=(357, 165, 323, 453), confidence=0.924
+✓ Target face selected: bbox=(210, 117, 154, 209), confidence=0.946
 
 [PHASE 3] Extracting Face Feature Embedding...
 ✓ Face embedding extracted: 128D vector (L2 normalized)
 
 [PHASE 4] Executing Genuine Web Search via 'serpapi_lens'...
-[SEARCH] Uploading image to SerpApi Google Lens: sample.jpg
-✓ Discovered 8 candidate search result(s).
+[SEARCH] Uploading local image to temporary public host for Google Lens...
+[SEARCH] ✓ Image hosted at ephemeral URL (expires in 3h): https://d.uguu.se/AvVMDSiv.jpg
+[SEARCH] Querying SerpApi Google Lens engine...
+[SEARCH] Discovered 10 candidate result(s) via Google Lens.
+✓ Discovered 10 candidate search result(s).
 
 [PHASE 5] Collecting Candidates & Extracting Media Metadata...
-✓ Collected and cached 6 unique candidate post(s).
+[COLLECTOR] Collected and cached 10 unique candidates.
+✓ Collected and cached 10 unique candidate post(s).
 
 [PHASE 6] Matching Target Face against Candidates...
-[RANKER] Comparing target face against 6 candidate(s)...
-  Candidate #1 (reuters.com): similarity = 0.8421 -> MATCH
-  Candidate #2 (bbc.com): similarity = 0.3120 -> NO MATCH
-✓ BEST MATCH SELECTED: https://reuters.com/world/article/123 (Score: 0.8421 >= 0.3630)
+[RANKER] Comparing target face against 10 candidate(s)...
+  Candidate #1 (Amazon.com): similarity = 0.9282 -> MATCH
+  Candidate #2 (eBay): similarity = 0.9297 -> MATCH
+  Candidate #3 (Wikimedia Commons): similarity = 0.9215 -> MATCH
+  Candidate #4 (New Mexico Museum of Space History): similarity = 0.9272 -> MATCH
+  Candidate #5 (CultureMap Dallas): similarity = 0.9320 -> MATCH
+  Candidate #6 (Amazon.com): similarity = 0.7034 -> MATCH
+  Candidate #7 (Instagram): similarity = 0.9315 -> MATCH
+  Candidate #8 (Wikimedia Commons): similarity = 0.9343 -> MATCH
+  Candidate #9 (Facebook): similarity = 0.9271 -> MATCH
+  Candidate #10 (Psychology Today): similarity = 0.9286 -> MATCH
+[RANKER] ✓ BEST MATCH SELECTED: https://commons.wikimedia.org/wiki/File:Elon_Musk_Royal_Society_(crop1).jpg (Score: 0.9343 >= 0.3630)
+✓ MATCH FOUND! Best match: https://commons.wikimedia.org/wiki/File:Elon_Musk_Royal_Society_(crop1).jpg
+  Similarity Score: 0.9343
 
 [PHASE 7 & 8] Normalizing Post Data & Generating SHA-256 Fingerprint...
 ✓ Canonical JSON Representation:
-  {"image_sha256":"4a1b...","retrieved_at":"2026-09-01T14:22:00Z","schema_version":"1.0","source":"reuters.com","text":"Article text...","title":"Article Title","url":"https://reuters.com/world/article/123"}
-✓ SHA-256 Content Fingerprint: 3b9a1e8c7f245a90d6b5e1c84f23b7a9e1d4c82a7f5e3d1c9b8a7e6f5d4c3b2a
+  {"image_sha256":"9000159391ceb300b5c50817765bc508bcfd8b75114e7dbf69ac47f26680820e","retrieved_at":"2026-09-03T06:18:47.825107+00:00","schema_version":"1.0","source":"Wikimedia Commons","text":"File:Elon Musk Royal Society (crop1).jpg - Wikimedia Commons","title":"File:Elon Musk Royal Society (crop1).jpg - Wikimedia Commons","url":"https://commons.wikimedia.org/wiki/File:Elon_Musk_Royal_Society_(crop1).jpg"}
+✓ SHA-256 Content Fingerprint: 58dae7a035fa19877ae599426b88d52eb9fa096a40c1357b3bbc14ff62beab72
 
 [PHASE 9 & 10] Submitting Verification Record to Blockchain...
-[BLOCKCHAIN] Preparing transaction for hash: 3b9a1e8c7f245a90...
-[BLOCKCHAIN] Sender Account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Nonce: 1)
-[BLOCKCHAIN] Broadcasted TX: 0xee6222267d84b692f66cbe88996d60d2253c3ff11d65eae1d8f968d1d354cd2f
-[BLOCKCHAIN] ✓ TX Confirmed in Block #3 (Gas Used: 140439)
+[BLOCKCHAIN] Preparing transaction for hash: 58dae7a035fa1987...
+[BLOCKCHAIN] Sender Account: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 (Nonce: 3)
+[BLOCKCHAIN] Broadcasted TX: 0x30bf3977b42fca7664903648aa555eb50d28c5964d11a68d0e19f3fd9b44519b
+[BLOCKCHAIN] ✓ TX Confirmed in Block #5 (Gas Used: 208412)
+✓ Record stored on-chain! TX: 0x30bf3977b42fca7664903648aa555eb50d28c5964d11a68d0e19f3fd9b44519b
+  Block Number: #5
+  Recorded By:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 
 [PHASE 11] Retrieving Verification Record from Blockchain...
 ✓ On-chain record retrieved successfully.
-  On-chain Hash: 3b9a1e8c7f245a90d6b5e1c84f23b7a9e1d4c82a7f5e3d1c9b8a7e6f5d4c3b2a
+  On-chain Hash: 58dae7a035fa19877ae599426b88d52eb9fa096a40c1357b3bbc14ff62beab72
 
 [PHASE 12] Re-calculating Local Hash & Verifying against Blockchain...
 ========================================
@@ -265,18 +282,18 @@ Max Candidates:    10
 ========================================
 
 [PHASE 13] Executing Proof-of-Tamper Demonstration...
-  Original Data Hash: 3b9a1e8c7f245a90d6b5e1c84f23b7a9e1d4c82a7f5e3d1c9b8a7e6f5d4c3b2a
-  Tampered Data Hash: 8f4e2d1c9a7b6e5f3d1c8a7b6e5f4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e
+  Original Data Hash: 58dae7a035fa19877ae599426b88d52eb9fa096a40c1357b3bbc14ff62beab72
+  Tampered Data Hash: f25486a3f114af2b67a4a0775e3f7db071ba34e591f9845100ab37f21b77ef24
 ✓ TAMPER TEST PASSED: Modified data correctly rejected.
 
 ============================================================
 FINAL RESULT SUMMARY
 ============================================================
-Face Match:              FOUND (Cosine Sim: 0.8421)
-Matching Post URL:       https://reuters.com/world/article/123
-Content SHA-256 Hash:    3b9a1e8c7f245a90d6b5e1c84f23b7a9e1d4c82a7f5e3d1c9b8a7e6f5d4c3b2a
-Blockchain Transaction:  0xee6222267d84b692f66cbe88996d60d2253c3ff11d65eae1d8f968d1d354cd2f
-Blockchain Block:        #3
+Face Match:              FOUND (Cosine Sim: 0.9343)
+Matching Post URL:       https://commons.wikimedia.org/wiki/File:Elon_Musk_Royal_Society_(crop1).jpg
+Content SHA-256 Hash:    58dae7a035fa19877ae599426b88d52eb9fa096a40c1357b3bbc14ff62beab72
+Blockchain Transaction:  0x30bf3977b42fca7664903648aa555eb50d28c5964d11a68d0e19f3fd9b44519b
+Blockchain Block:        #5
 Verification Status:     VERIFIED ✓
 Tamper Test Result:      TAMPER_DETECTED
 ============================================================
@@ -305,13 +322,17 @@ pytest -v tests/
 
 ## Known Limitations
 
-1. **Search Index Coverage & Availability**:
+1. **Third-Party Ephemeral Image Hosting for Google Lens Crawling**:
+   - Google Lens is a cloud service that requires a publicly accessible HTTP URL to crawl and analyze image bytes.
+   - For local input images, the pipeline temporarily uploads the image to an ephemeral third-party host (primarily `uguu.se`, which automatically deletes all files after **3 hours**, or fallback unlisted hosts like `catbox.moe` / `0x0.st`).
+   - **Privacy Notice:** During the reverse search phase, the input image is briefly reachable via an unlisted URL. **Users must NOT run this pipeline against private, sensitive, or confidential photographs.**
+2. **Search Index Coverage & Availability**:
    - Reverse visual search relies on Google Lens / SerpApi indexing. If a face image has never been indexed on publicly crawlable web pages, SerpApi will return zero visual matches, resulting in a clean `NO MATCH FOUND` report.
    - For novel or private images, query-assisted mode (`--provider duckduckgo --query "Name"`) can be used to search candidate pages by contextual keywords.
-2. **Dynamic / Protected Web Pages**:
+3. **Dynamic / Protected Web Pages**:
    - Web pages behind anti-scraping walls (Cloudflare Bot Management, CAPTCHAs) or client-side JavaScript single-page apps (SPAs) without static OpenGraph tags may limit the richness of extracted metadata snippets.
-3. **Occlusions & Extreme Angles**:
-   - While YuNet and SFace tolerate moderate yaw and pitch deviations, extreme profile views (>60°), severe facial occlusions, or heavy compression artifacts in candidate images will reduce matching confidence scores.
+4. **Candidate Media Caching**:
+   - Downloaded candidate images are cached under `data/candidates/` so investigators can audit the raw files and verify `image_sha256`. Use `--cleanup` flag with `main.py` if you wish to remove cached media after execution.
 
 ---
 
@@ -320,10 +341,13 @@ pytest -v tests/
 1. **Authorized Usage Only**:
    > [!IMPORTANT]
    > This face-search verification capability must **only** be executed against your own photographs or images for which you have received explicit, written consent from the subject. Unauthorized scanning or surveillance of individuals without consent violates privacy ethics and applicable data protection regulations.
-2. **Biometric Data Minimization**:
+2. **Temporary File Exposure Warning**:
+   > [!WARNING]
+   > Because Google Lens requires a public URL, local images are temporarily hosted on an ephemeral service (`uguu.se` with 3-hour auto-purge). Do not upload images containing personally identifiable information (PII), minors, or sensitive content.
+3. **Biometric Data Minimization**:
    - 128-dimensional facial embedding vectors are retained strictly in volatile RAM for the duration of the comparison and are **never** persisted to disk or written to the blockchain.
    - Only the SHA-256 cryptographic hash of public, normalized post metadata is anchored on-chain.
-3. **Compliance with Data Regulations**:
+4. **Compliance with Data Regulations**:
    - Compliant with GDPR (Article 9) and CCPA principles by ensuring no sensitive biometric identifiers or personal data are anchored to immutable public ledgers.
 
 ---

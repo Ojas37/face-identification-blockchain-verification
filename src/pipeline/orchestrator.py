@@ -79,10 +79,11 @@ class PipelineOrchestrator:
 
     def execute(
         self,
-        image_path: Path,
+        image_path: Union[str, Path],
         query: Optional[str] = None,
         run_tamper_test: bool = True,
         dry_run: bool = False,
+        cleanup: bool = False,
     ) -> Dict[str, Any]:
         """
         Execute the full end-to-end verification pipeline.
@@ -298,6 +299,9 @@ class PipelineOrchestrator:
         # -------------------------------------------------------------
         # PHASE 14: Final Summary Audit Report
         # -------------------------------------------------------------
+        if cleanup:
+            self.collector.clear_cache()
+
         logger.info("\n" + "=" * 60)
         logger.info("FINAL RESULT SUMMARY")
         logger.info("=" * 60)

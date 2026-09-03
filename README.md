@@ -339,6 +339,9 @@ pytest -v tests/
      - **Semi-Public Individuals (Faculty, Researchers, Open-Source Authors)**: Return targeted conference proceedings, institutional lab pages, and professional profiles where distinct photographs of the same person match with high confidence (e.g. 0.85–0.92).
      - **Private Individuals & Non-Indexed Images**: Search engines return either zero results or generic visual lookalikes (stock photos, similar attire or background). The deep-learning face matcher (YuNet + SFace) evaluates facial embeddings independently of search ranking and **correctly rejects non-matching lookalikes** (typically scoring 0.14–0.30, well below threshold), reporting `NO MATCH FOUND` without forcing false positives.
    - This difference in candidate volume is a boundary condition of external search engine web crawlers, not a defect in the biometric facial embedding or blockchain verification architecture.
+6. **Group / Multi-Face Input Images**:
+   - When the input photograph contains multiple people, the pipeline selects one face heuristically (primary: largest bounding box area and detection confidence: `area * confidence`) without prior reference knowledge of which individual is the intended target.
+   - The pipeline prints an explicit warning (`[WARNING] N faces detected...`) and automatically saves a debug crop to `data/candidates/selected_target_face.jpg` so reviewers can inspect which person was searched. For reliable verification, supply a single-person photo or a tight crop around the intended subject.
 
 ---
 

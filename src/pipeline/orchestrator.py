@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+import cv2
 
 from src.blockchain.client import BlockchainClient, BlockchainError
 from src.config import settings
@@ -123,6 +124,24 @@ class PipelineOrchestrator:
         target_face = self.detector.select_target_face(detected_faces)
         if not target_face:
             raise PipelineExecutionError("Target face selection failed.")
+
+        if len(detected_faces) > 1:
+            logger.warning(
+                f"{len(detected_faces)} faces detected in input image — for group/multi-person "
+                f"photos, face selection is ambiguous. Selected the largest/most prominent face by "
+                f"default (bbox={target_face.bbox}, confidence={target_face.confidence:.3f}). "
+                f"For reliable results, use a single-person photo or a close crop of your subject."
+            )
+
+        # Save visual crop of the selected target face for auditor inspection
+        x, y, w, h = target_face.bbox
+        crop = image[y:y+h, x:x+w]
+        if crop.size > 0:
+            crop_dir = settings.candidates_cache_dir
+            crop_dir.mkdir(parents=True, exist_ok=True)
+            debug_crop_path = crop_dir / "selected_target_face.jpg"
+            cv2.imwrite(str(debug_crop_path), crop)
+            logger.info(f"✓ Saved debug crop of selected target face to: {debug_crop_path}")
 
         logger.info(
             f"✓ Target face selected: bbox={target_face.bbox}, "
